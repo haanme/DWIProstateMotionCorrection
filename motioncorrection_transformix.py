@@ -53,12 +53,13 @@ def read_outputPoints_txt(filename):
 #
 # Create coordinates file
 #
-# input_file        - elastix transformation tiff file with RGB channels for x,y,z directions
-# parameter_file    - elastix co-registration parameters file
-# output_prefix     - output prefix
-# output_sub_prefix - output subfolder prefix
+# input_files         - elastix transformation tiff file with RGB channels for x,y,z directions
+# parameter_files     - elastix co-registration parameters file
+# output_prefix       - output prefix
+# output_sub_prefixes - output subfolder prefix
+# DWIimgs             - DWIimage for overlay purposes
 #
-def plot_deformation_vectors(input_file, parameter_file, output_prefix, output_sub_prefix):
+def plot_deformation_vectors(input_files, parameter_files, output_prefix, output_sub_prefixes, DWIimgs):
     import matplotlib.pyplot as plt
     import skimage.io
     import tifffile
@@ -68,29 +69,49 @@ def plot_deformation_vectors(input_file, parameter_file, output_prefix, output_s
     from matplotlib.ticker import LinearLocator, FormatStrFormatter
     from matplotlib.backends.backend_pdf import PdfPages
 
-    out_dir = experiment_dir + '/' + output_prefix + '/' + output_sub_prefix + '/QC'
-
-    im = skimage.io.imread(input_file, plugin='tifffile')
+    out_dir = experiment_dir + '/' + output_prefix
+    im = skimage.io.imread(input_files[0], plugin='tifffile')
     shape = im.shape
     no_slices = shape[0]
+    used_slices = range(shape[0])
+    no_slices_per_page = 3
+    pdf = PdfPages(out_dir + '/deformation_QC.pdf')
     print shape
 
-    fig = plt.figure()
-    plot_i = 0
-    # use 3 slices in slice range
-    used_slices = np.ceil(np.linspace(0,shape[0]-1,3))
-    slice_str = ''
+    # Go through slices
     for used_slice_i in range(len(used_slices)):
-        slice_i = used_slices[used_slice_i]
-        imslice = im[slice_i,:,:,:]
-        plot_i = plot_slice(fig, imslice, shape, plot_i, len(used_slices))
-        slice_str = slice_str + ' ' + ('%.0f' % slice_i)
-    fig.suptitle('[' + output_prefix + '] Deformation QC for slices ' + slice_str, fontsize=20)
-#plt.show()
-    pp = PdfPages(out_dir + '/deformation_QC.pdf')
-    pp.savefig(fig)
-    plt.close()
-    pp.close()
+        slice_i = int(used_slices[used_slice_i])
+        # Go through b-values
+        for b_value in range(len(input_files)):
+            print str(slice_i) + ' frame ' + str(b_value)
+            # Start writing data for new page
+            if np.mod(b_value, 3) == 0:
+                fig = plt.figure()
+                fig.subplots_adjust(hspace=.01)
+                fig.subplots_adjust(wspace=.1)
+                fig.subplots_adjust(left=0.05)
+                fig.subplots_adjust(right=0.95)
+                fig.subplots_adjust(top=0.95)
+                fig.subplots_adjust(bottom=0.01)
+                plot_i = 0
+                slice_str = ''
+            im = skimage.io.imread(input_files[b_value], plugin='tifffile')
+            imslice = im[slice_i,:,:,:]
+            plot_i = plot_slice(fig, imslice, shape, plot_i, no_slices_per_page, DWIimgs[b_value][slice_i].pixel_array)
+            slice_str = slice_str + ' ' + ('%.0f' % b_value)
+            # Save data to figure
+            if np.mod(b_value, 3) == 2:
+                fig.suptitle('[' + output_prefix + '] Deformation QC for slice ' + str(slice_i) + ' frames ' + slice_str, fontsize=12)
+                pdf.savefig(fig)
+                #plt.show()
+                plt.close()
+        # Save data to figure if last round did not involve saving
+        if np.mod(shape[3]-1, 3) != 2:
+            fig.suptitle('[' + output_prefix + '] Deformation QC for slice ' + str(slice_i) + ' frames ' + slice_str, fontsize=12)
+            pdf.savefig(fig)
+            #plt.show()
+            plt.close()
+    pdf.close()
 
 #
 # Plot displacement slice for QC purposes
@@ -126,10 +147,12 @@ def plot_displacement_slice(fig, slice_img, no_slices, plot_i, title, Dvals):
 # shape       - shape of original displacement field image z,x,y,d, where d is displacement [u,v,w]
 # plot_i      - current plot index in QC subplots
 # no_slices   - total number of slices that are going to be QC'd
+# dwislice    - DWI slice for overlay purposes
 #
-def plot_slice(fig, imslice, shape, plot_i, no_slices):
+def plot_slice(fig, imslice, shape, plot_i, no_slices, dwislice):
     import scipy.ndimage
     import matplotlib.pyplot as plt
+    import matplotlib.cm as cm
 
     ax = fig.add_subplot(no_slices, 5, plot_i+1)
     X = np.linspace(0, shape[2], shape[2])
@@ -147,6 +170,7 @@ def plot_slice(fig, imslice, shape, plot_i, no_slices):
     dir(ax.quiver)
     ax.quiver(X,Y,w,u,v,w)
     ax.set_aspect('equal')
+    plt.axis('off')
 
     ydim = X.shape[0]
     xdim = X.shape[1]
@@ -165,8 +189,9 @@ def plot_slice(fig, imslice, shape, plot_i, no_slices):
     print 'Mean:' + str(np.mean(Yd)) + ' SD:' + str(np.std(Yd)) + ' Max:' + str(np.ma.max(Yd))
     print 'Mean:' + str(np.mean(Zd)) + ' SD:' + str(np.std(Zd)) + ' Max:' + str(np.ma.max(Zd))
     ax = fig.add_subplot(no_slices, 5, plot_i+2)
-    ax.plot(Xw, Yw,'b-')
-    ax.plot(Xw.T, Yw.T,'b-')
+    ax.imshow(dwislice, cmap = cm.Greys_r)
+    ax.plot(Xw, Yw,'b-', linewidth=0.5)
+    ax.plot(Xw.T, Yw.T,'b-', linewidth=0.5)
     ax.set_aspect('equal')
     plt.axis('off')
 
@@ -233,6 +258,46 @@ import time
 import numpy as np
 
 if __name__ == "__main__":
+
+    """
+    import datetime
+    from matplotlib.backends.backend_pdf import PdfPages
+    import matplotlib.pyplot as plt
+    # Create the PdfPages object to which we will save the pages:
+    # The with statement makes sure that the PdfPages object is closed properly at
+    # the end of the block, even if an Exception occurs.
+    with PdfPages('multipage_pdf.pdf') as pdf:
+        plt.figure(figsize=(3, 3))
+        plt.plot(range(7), [3, 1, 4, 1, 5, 9, 2], 'r-o')
+        plt.title('Page One')
+        pdf.savefig()  # saves the current figure into a pdf page
+        plt.close()
+
+        plt.rc('text', usetex=True)
+        plt.figure(figsize=(8, 6))
+        x = np.arange(0, 5, 0.1)
+        plt.plot(x, np.sin(x), 'b-')
+        plt.title('Page Two')
+        pdf.savefig()
+        plt.close()
+
+        plt.rc('text', usetex=False)
+        fig = plt.figure(figsize=(4, 5))
+        plt.plot(x, x*x, 'ko')
+        plt.title('Page Three')
+        pdf.savefig(fig)  # or you can pass a Figure object to pdf.savefig
+        plt.close()
+
+        # We can also set the file's metadata via the PdfPages object:
+        d = pdf.infodict()
+        d['Title'] = 'QC'
+        d['Author'] = u'Harri Merisaari'
+        d['Subject'] = 'Quality Control file for DWI data motoin correction'
+        d['Keywords'] = 'DWI Quality Control'
+        d['CreationDate'] = datetime.datetime.today()
+        d['ModDate'] = datetime.datetime.today()
+    sys.exit(0)
+    """
     parser = ArgumentParser()
     parser.add_argument("--dicomdir", dest="dicomdir", help="dicomdir", required=True)
     parser.add_argument("--subject", dest="subject", help="subject id", required=True)
@@ -244,18 +309,22 @@ if __name__ == "__main__":
         if os.path.isdir(experiment_dir + '/' + args.subject + '/' + subdirs[subdir_i]) and (subdirs[subdir_i].find('Motioncorrected_') != -1):
             subdirs_for_QC.append(subdirs[subdir_i])
 
+    B0_images = []
+    parameter_files = []
+    disp_fields = []
     for subdir_i in range(len(subdirs_for_QC)):
         print "Loading B-0 of defromed image"
-        
-
-        break
+        dcmio = DicomIO.DicomIO()
+        dwidcm = dcmio.ReadDICOM_frames(experiment_dir + '/' + args.subject + '/Motioncorrected')
+        dwishape = [dwidcm[0][0].pixel_array.shape[0], dwidcm[0][0].pixel_array.shape[1], len(dwidcm[0]), len(dwidcm)]
+        B0_images.append(dwidcm[0])
         parameter_file = experiment_dir + '/' + args.subject + '/' + subdirs_for_QC[subdir_i] + '/' + 'TransformParameters.1.txt'
+        parameter_files.append(parameter_file)
         print "Creating deformation field images non-corrected [" + subdirs_for_QC[subdir_i] + "]"
         try:
             disp_field, jacdet_map, jacmat_map, logfile = elastix_AnalyzeWarp(parameter_file, args.subject, subdirs_for_QC[subdir_i])
         except Exception as inst:
             raise
-        plot_deformation_vectors(disp_field, parameter_file, args.subject, subdirs_for_QC[subdir_i])
-        break
-
-    sys.exit(0)
+        disp_fields.append(disp_field)
+    print "Creating QC pdf"
+    plot_deformation_vectors(disp_fields, parameter_files, args.subject, subdirs_for_QC, B0_images)
