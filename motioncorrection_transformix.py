@@ -2,8 +2,6 @@
 
 elastix_dir = '/Users/eija/Documents/SW/Elastix/elastix_sources_v4.7/bin/bin/'
 experiment_dir = '/Users/eija/Desktop/prostate_MR/pipelinedata'
-param_rigid = 'Par0001translation.txt'
-param_BSpline = 'Par0001bspline08.txt'
 #mask_matfile_basedir = '/Users/eija/Desktop/prostate_MR/PET_MR_dwis/Carimas27projectfiles_Hb_work_all_noGS/ROI_mat_files'
 mask_matfile_basedir_hB = '/Users/eija/Desktop/prostate_MR/PET_MR_dwis/Carimas27projectfiles_Hb_work_all_noGS_for_Motion_Cor/ROI_mat_files'
 mask_matfile_basedir_lB = '/Users/eija/Desktop/prostate_MR/PET_MR_dwis/Carimas27projectfiles_Lb_work_2rep/ROI_mat_files'
@@ -11,9 +9,9 @@ mask_matfile_basedir_lB = '/Users/eija/Desktop/prostate_MR/PET_MR_dwis/Carimas27
 #
 # Write input points for transformix
 #
-# X                 - x-coordinates
-# Y                 - y-coordinates
-# Z                 - z-coordinates
+# X - x-coordinates
+# Y - y-coordinates
+# Z - z-coordinates
 #
 def write_inputPoints_txt(X, Y, Z):
     outfilename = 'transformix_inputPoints.txt'
@@ -62,7 +60,11 @@ def read_outputPoints_txt(filename):
 def plot_deformation_vectors(input_files, parameter_files, output_prefix, output_sub_prefixes, DWIimgs):
     import matplotlib.pyplot as plt
     import skimage.io
-    import tifffile
+    import os
+    import warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        import tifffile
     import numpy as np
     from mpl_toolkits.mplot3d import Axes3D
     from matplotlib import cm
@@ -75,7 +77,7 @@ def plot_deformation_vectors(input_files, parameter_files, output_prefix, output
     no_slices = shape[0]
     used_slices = range(shape[0])
     no_slices_per_page = 3
-    pdf = PdfPages(out_dir + '/deformation_QC.pdf')
+    pdf = PdfPages(out_dir + os.sep + 'deformation_QC.pdf')
     print shape
 
     # Go through slices
@@ -153,17 +155,22 @@ def plot_slice(fig, imslice, shape, plot_i, no_slices, dwislice):
     import scipy.ndimage
     import matplotlib.pyplot as plt
     import matplotlib.cm as cm
+    import warnings
 
     ax = fig.add_subplot(no_slices, 5, plot_i+1)
     X = np.linspace(0, shape[2], shape[2])
     Y = np.linspace(0, shape[1], shape[1])
     X, Y = np.meshgrid(X, Y)
     zfactor = 0.15
-    X = scipy.ndimage.zoom(X, zfactor, order=0)
-    Y = scipy.ndimage.zoom(Y, zfactor, order=0)
-    imsliceRu = scipy.ndimage.zoom(imslice[:,:,0], zfactor, order=2)
-    imsliceRv = scipy.ndimage.zoom(imslice[:,:,1], zfactor, order=2)
-    imsliceRw = scipy.ndimage.zoom(imslice[:,:,2], zfactor, order=2)
+
+    # Catch user warning about changing result size
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        X = scipy.ndimage.zoom(X, zfactor, order=0)
+        Y = scipy.ndimage.zoom(Y, zfactor, order=0)
+        imsliceRu = scipy.ndimage.zoom(imslice[:,:,0], zfactor, order=2)
+        imsliceRv = scipy.ndimage.zoom(imslice[:,:,1], zfactor, order=2)
+        imsliceRw = scipy.ndimage.zoom(imslice[:,:,2], zfactor, order=2)
     u = imsliceRu
     v = imsliceRv
     w = imsliceRw
@@ -202,7 +209,6 @@ def plot_slice(fig, imslice, shape, plot_i, no_slices, dwislice):
     plot_i = plot_i + 5
     return plot_i
 
-
 #
 # Run transformix
 #
@@ -212,6 +218,7 @@ def plot_slice(fig, imslice, shape, plot_i, no_slices, dwislice):
 # output_sub_prefix - output subfolder prefix
 #
 def elastix_PointsWarp(input_file, inputpoints_file, output_prefix, output_sub_prefix):
+    import os
     from os.path import abspath as opap
     from nipype.interfaces.base import CommandLine
     from nipype.utils.filemanip import split_filename
@@ -220,12 +227,10 @@ def elastix_PointsWarp(input_file, inputpoints_file, output_prefix, output_sub_p
     # Create output directory if it does not exist
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
-
     cmd = CommandLine((elastix_dir + 'transformix -out %s -def %s -tp %s') % (out_dir, inputpoints_file, input_file))
-
     print "transformix: " + cmd.cmd
     cmd.run()
-    return (out_dir + '/' + 'outputpoints.txt')
+    return (out_dir + os.sep + 'outputpoints.txt')
 
 #
 # Run transformix
@@ -235,6 +240,7 @@ def elastix_PointsWarp(input_file, inputpoints_file, output_prefix, output_sub_p
 # output_sub_prefix - output subfolder prefix
 #
 def elastix_AnalyzeWarp(input_file, output_prefix, output_sub_prefix):
+    import os
     from os.path import abspath as opap
     from nipype.interfaces.base import CommandLine
     from nipype.utils.filemanip import split_filename
@@ -242,12 +248,87 @@ def elastix_AnalyzeWarp(input_file, output_prefix, output_sub_prefix):
     # Create output directory if it does not exist
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
-
     cmd = CommandLine((elastix_dir + 'transformix -def all -jac all -jacmat all -out %s -tp %s') % (out_dir, input_file))
-
     print "transformix: " + cmd.cmd
     cmd.run()
-    return (out_dir + '/' + 'deformationField.tiff'), (out_dir + '/' + 'spatialJacobian.tiff'), (out_dir + '/' + 'fullSpatialJacobian.tiff'), (out_dir + '/' + 'transformix.log')
+    return (out_dir + os.sep + 'deformationField.tiff'), (out_dir + os.sep + 'spatialJacobian.tiff'), (out_dir + os.sep + 'fullSpatialJacobian.tiff'), (out_dir + os.sep + 'transformix.log')
+
+#
+# Run transformix
+#
+# input_file        - elastix co-registration parameters file
+#
+def read_log(input_file):
+    import numpy as np
+
+    f = open(input_file)
+    lines = f.readlines()
+    f.close()
+    read_state = 0
+    resolutions = []
+    iterations = []
+    for line_i in range(len(lines)):
+        line = lines[line_i]
+        if read_state == 0 and line.startswith('1:ItNr'):
+            read_state = 1
+            resolution_names = []
+            splitted_line = line.split()
+            for splitted_i in range(len(splitted_line)-1):
+                splitted_name = splitted_line[splitted_i].split(':')
+                resolution_names.append(splitted_name[1])
+            continue
+        if read_state == 1 and line.startswith('Time spent'):
+            read_state = 0
+            resolutions.append({'data':np.array(iterations), 'names':resolution_names, 'endcondition':lines[line_i+1]})
+            iterations = []
+            continue
+        if read_state == 1:
+            iterations.append(line.split())
+    return resolutions[0:-2]
+
+#
+# Plots iteration info into pdf
+#
+# loginfo             - information file 
+# out_dir             - output directory
+#
+def plot_iterationinfo(loginfo, out_dir):
+    import matplotlib.pyplot as plt
+    import skimage.io
+    import os
+    import warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        import tifffile
+    import numpy as np
+    from mpl_toolkits.mplot3d import Axes3D
+    from matplotlib import cm
+    from matplotlib.ticker import LinearLocator, FormatStrFormatter
+    from matplotlib.backends.backend_pdf import PdfPages
+
+    pdf = PdfPages(out_dir + os.sep + 'convergence_QC.pdf')
+
+    # Go through resolutions
+    no_resolutions = len(loginfo)
+    fig = plt.figure()
+    fig.subplots_adjust(hspace=.5)
+    fig.subplots_adjust(wspace=.01)
+    fig.subplots_adjust(left=0.15)
+    fig.subplots_adjust(right=0.95)
+    fig.subplots_adjust(top=0.95)
+    fig.subplots_adjust(bottom=0.05)
+    fig.suptitle('Deformation convergence', fontsize=12)
+    for resolution_i in range(no_resolutions):
+        resolution = loginfo[resolution_i]['data']
+        ax = fig.add_subplot(no_resolutions, 1, resolution_i)
+        x1 = np.array(range(1,resolution.shape[0]+1)).T
+        ax.plot(x1, resolution[:,1].T, 'yo-')
+        ax.set_xlabel(loginfo[resolution_i]['endcondition'], fontsize=8, labelpad=0)
+        ax.set_ylabel(loginfo[resolution_i]['names'][1], labelpad=0.1)
+        ax.tick_params(axis='both', which='major', labelsize=8)
+        ax.tick_params(axis='both', which='minor', labelsize=6)
+    pdf.savefig(fig)
+    pdf.close()
 
 from argparse import ArgumentParser
 import sys
@@ -256,69 +337,34 @@ import DicomIO
 import conversions as conv
 import time
 import numpy as np
+import glob
 
 if __name__ == "__main__":
 
-    """
-    import datetime
-    from matplotlib.backends.backend_pdf import PdfPages
-    import matplotlib.pyplot as plt
-    # Create the PdfPages object to which we will save the pages:
-    # The with statement makes sure that the PdfPages object is closed properly at
-    # the end of the block, even if an Exception occurs.
-    with PdfPages('multipage_pdf.pdf') as pdf:
-        plt.figure(figsize=(3, 3))
-        plt.plot(range(7), [3, 1, 4, 1, 5, 9, 2], 'r-o')
-        plt.title('Page One')
-        pdf.savefig()  # saves the current figure into a pdf page
-        plt.close()
-
-        plt.rc('text', usetex=True)
-        plt.figure(figsize=(8, 6))
-        x = np.arange(0, 5, 0.1)
-        plt.plot(x, np.sin(x), 'b-')
-        plt.title('Page Two')
-        pdf.savefig()
-        plt.close()
-
-        plt.rc('text', usetex=False)
-        fig = plt.figure(figsize=(4, 5))
-        plt.plot(x, x*x, 'ko')
-        plt.title('Page Three')
-        pdf.savefig(fig)  # or you can pass a Figure object to pdf.savefig
-        plt.close()
-
-        # We can also set the file's metadata via the PdfPages object:
-        d = pdf.infodict()
-        d['Title'] = 'QC'
-        d['Author'] = u'Harri Merisaari'
-        d['Subject'] = 'Quality Control file for DWI data motoin correction'
-        d['Keywords'] = 'DWI Quality Control'
-        d['CreationDate'] = datetime.datetime.today()
-        d['ModDate'] = datetime.datetime.today()
-    sys.exit(0)
-    """
     parser = ArgumentParser()
     parser.add_argument("--dicomdir", dest="dicomdir", help="dicomdir", required=True)
     parser.add_argument("--subject", dest="subject", help="subject id", required=True)
     args = parser.parse_args()
-
-    subdirs = os.listdir(experiment_dir + '/' + args.subject)
+    subdirs = os.listdir(experiment_dir + os.sep + args.subject)
     subdirs_for_QC = []
     for subdir_i in range(len(subdirs)):
-        if os.path.isdir(experiment_dir + '/' + args.subject + '/' + subdirs[subdir_i]) and (subdirs[subdir_i].find('Motioncorrected_') != -1):
+        if os.path.isdir(experiment_dir + os.sep + args.subject + os.sep + subdirs[subdir_i]) and (subdirs[subdir_i].find('Motioncorrected_') != -1):
             subdirs_for_QC.append(subdirs[subdir_i])
-
     B0_images = []
     parameter_files = []
     disp_fields = []
     for subdir_i in range(len(subdirs_for_QC)):
-        print "Loading B-0 of defromed image"
+        subdir = experiment_dir + os.sep + args.subject + os.sep + subdirs_for_QC[subdir_i]
+        loginfo = read_log(subdir + os.sep + 'elastix.log')
+        plot_iterationinfo(loginfo, subdir)
+        continue
+        print "Loading B-0 of deformed image"
         dcmio = DicomIO.DicomIO()
-        dwidcm = dcmio.ReadDICOM_frames(experiment_dir + '/' + args.subject + '/Motioncorrected')
+        dwidcm = dcmio.ReadDICOM_frames(experiment_dir + os.sep + args.subject + '/Motioncorrected')
         dwishape = [dwidcm[0][0].pixel_array.shape[0], dwidcm[0][0].pixel_array.shape[1], len(dwidcm[0]), len(dwidcm)]
         B0_images.append(dwidcm[0])
-        parameter_file = experiment_dir + '/' + args.subject + '/' + subdirs_for_QC[subdir_i] + '/' + 'TransformParameters.1.txt'
+        TransformParameters_paths = glob.glob((experiment_dir + os.sep + args.subject + os.sep + subdirs_for_QC[subdir_i] + os.sep + 'TransformParameters.*.txt'))
+        parameter_file = TransformParameters_paths[-1]
         parameter_files.append(parameter_file)
         print "Creating deformation field images non-corrected [" + subdirs_for_QC[subdir_i] + "]"
         try:
@@ -327,4 +373,4 @@ if __name__ == "__main__":
             raise
         disp_fields.append(disp_field)
     print "Creating QC pdf"
-    plot_deformation_vectors(disp_fields, parameter_files, args.subject, subdirs_for_QC, B0_images)
+#    plot_deformation_vectors(disp_fields, parameter_files, args.subject, subdirs_for_QC, B0_images)

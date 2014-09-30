@@ -167,18 +167,24 @@ def elastix(input_file, target_file, mask_file, output_prefix, output_sub_prefix
     from os.path import abspath as opap
     from nipype.interfaces.base import CommandLine
     from nipype.utils.filemanip import split_filename
+    import shutil
+    import glob
+    import os
     out_dir = experiment_dir + '/' + output_prefix + '/' + output_sub_prefix
     # Create output directory if it does not exist
-    if not os.path.exists(out_dir):
-        os.makedirs(out_dir)
+    if os.path.exists(out_dir):
+        print "rmtree: " + out_dir
+        shutil.rmtree(out_dir)
+    print "creating: " + out_dir
+    os.makedirs(out_dir)
 
-            #    cmd = CommandLine(('elastix -f %s -m %s -fMask %s -out %s -p %s -p %s -threads 8') % (target_file, input_file, mask_file, out_dir, param_rigid, param_BSpline))
-    #cmd = CommandLine(('/Users/eija/Documents/SW/Elastix/elastix_sources_v4.7/bin/bin/elastix -f %s -m %s -out %s -p %s -threads 8') % (target_file, input_file, out_dir, param_rigid))
     cmd = CommandLine(('/Users/eija/Documents/SW/Elastix/elastix_sources_v4.7/bin/bin/elastix -f %s -m %s -out %s -p %s -p %s -threads 8') % (target_file, input_file, out_dir, param_rigid, param_BSpline))
+#   cmd = CommandLine(('/Users/eija/Documents/SW/Elastix/elastix_sources_v4.7/bin/bin/elastix -f %s -m %s -out %s -p %s -threads 8') % (target_file, input_file, out_dir, param_rigid))
 
     print "elastix: " + cmd.cmd
     cmd.run()
-    return out_dir + '/' + 'result.1.tiff'
+    resultfiles = glob.glob(out_dir + os.sep + 'result.*.tiff')
+    return resultfiles
 
 #
 # Print all DICOM data
@@ -251,8 +257,10 @@ def singletiff2multidicom(in_files, dicomdir, plans, out_prefix):
     import numpy as np
     import os
     import shutil
-    import tifffile as tiff
-
+    import warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        import tifffile as tiff
     outdir = experiment_dir + '/' + out_prefix + '/' + dicomdir
     if not os.path.exists(outdir):
         os.makedirs(outdir)
@@ -354,7 +362,7 @@ if __name__ == "__main__":
 
     print "RESOLVING BOUNDS"
         #    try:
-    mask_file, mask_file_ROIslice_filename, ROIslice_i, bounds = get_boundsmask(args.subject, dwishape, dwidcm[0], matfilename, [0], 50)
+    mask_file, mask_file_ROIslice_filename, ROIslice_i, bounds = get_boundsmask(args.subject, dwishape, dwidcm[0], matfilename, [0], 20)
     np.savetxt((experiment_dir + '/' + args.subject + '/' + 'subregion.txt'),bounds, fmt='%f', header=('subject ' + args.subject))
         #except Exception as inst:
         #errors = errors + 1
@@ -394,11 +402,12 @@ if __name__ == "__main__":
         sys.exit(1)
     result_frames_tiff = []
     for subvol_i in range(0,len(subvols_orig)):
+        #    for subvol_i in range(0,2):
         try:
             subvols_i_file,rawfile,txtfile = conv.dicom2mhd(subvol_dirs[subvol_i], args.subject)
             print subvols_i_file + " > " + subvol_0_file
-            mc_frame = elastix(subvols_i_file, subvol_0_file, mask_file_ROIslice_filename[0], args.subject, ('Motioncorrected_' + str(subvol_i) + '_to_' + str(0)))
-            result_frames_tiff.append(mc_frame)
+            mc_frame_files = elastix(subvols_i_file, subvol_0_file, mask_file_ROIslice_filename[0], args.subject, ('Motioncorrected_' + str(subvol_i) + '_to_' + str(0)))
+            result_frames_tiff.append(mc_frame_files[-1])
         except Exception as inst:
             errors = errors + 1
             print type(inst)     # the exception instance
