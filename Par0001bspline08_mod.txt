@@ -11,7 +11,7 @@
 (FixedImagePyramid "FixedSmoothingImagePyramid")
 (MovingImagePyramid "MovingSmoothingImagePyramid")
 (Interpolator "BSplineInterpolator")
-(Metric "AdvancedMattesMutualInformation")
+(Metric "NormalizedMutualInformation")
 (Optimizer "StandardGradientDescent")
 (ResampleInterpolator "FinalBSplineInterpolator")
 (Resampler "DefaultResampler")
@@ -19,9 +19,9 @@
 
 (ErodeMask "false" )
 
-(NumberOfResolutions 4)
+(NumberOfResolutions 3)
 (FinalGridSpacingInPhysicalUnits 8.0)
-(GridSpacingSchedule 8.0 4.0 2.0 1.0)
+(GridSpacingSchedule 16.0 8.0 4.0)
 
 (HowToCombineTransforms "Compose")
 
@@ -33,7 +33,7 @@
 (WriteTransformParametersEachResolution "true")
 
 //Maximum number of iterations in each resolution level:
-(MaximumNumberOfIterations 2000 ) 
+(MaximumNumberOfIterations 1000 ) 
 
 //Number of grey level bins in each resolution level:
 (NumberOfHistogramBins 32 )
@@ -42,9 +42,8 @@
 (FixedKernelBSplineOrder 3)
 (MovingKernelBSplineOrder 3)
 
-
 //Number of spatial samples used to compute the mutual information in each resolution level:
-(ImageSampler "RandomCoordinate")
+(ImageSampler "Grid")
 (NumberOfSpatialSamples 2000 )
 (FixedImageBSplineInterpolationOrder 1)
 (UseRandomSampleRegion "true")
@@ -61,13 +60,12 @@
 //Default pixel value for pixels that come from outside the picture:
 (DefaultPixelValue 0)
 
+//Parameters for Gradient Descent
 //SP: Param_a in each resolution level. a_k = a/(A+k+1)^alpha
-(SP_a 2000.0 )
-
+(SP_a 125.0 125.0 25.0)
 //SP: Param_A in each resolution level. a_k = a/(A+k+1)^alpha
-(SP_A 200.0 )
-
+(SP_A 200.0 200.0 200.0)
 //SP: Param_alpha in each resolution level. a_k = a/(A+k+1)^alpha
-(SP_alpha 0.6 ) 
+(SP_alpha 0.6 0.6 0.6)
 
 

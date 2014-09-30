@@ -9,43 +9,58 @@
 //Components
 (Registration "MultiResolutionRegistration")
 (FixedImagePyramid "FixedSmoothingImagePyramid")
+(FixedSmoothingImagePyramidSchedule 1 1 1)
 (MovingImagePyramid "MovingSmoothingImagePyramid")
+(MovingSmoothingImagePyramidSchedule 1 1 1)
+
 (Interpolator "BSplineInterpolator")
-(Metric "AdvancedMattesMutualInformation")
-(Optimizer "StandardGradientDescent")
+
+(Metric "NormalizedMutualInformation")
+(ShowExactMetricValue "true")
+(ExactMetricSampleGridSpacing 1 1 1)
+
+(Optimizer "ConjugateGradient")
 (ResampleInterpolator "FinalBSplineInterpolator")
 (Resampler "DefaultResampler")
-(Transform "AffineTransform")
+(Transform "AdvancedAffineTransform")
 
 (ErodeMask "false")
 
+//Scales estimation of the parameters
 (AutomaticScalesEstimation "true")
 (AutomaticTransformInitialization "false")
+(AutomaticTransformInitializationMethod "CenterOfGravity")
 
-(NumberOfResolutions 4)
+(NumberOfResolutions 1)
 
 (HowToCombineTransforms "Compose")
 
-(WriteResultImage "false")
-(WriteResultImageAfterEachResolution "false") 
-(WriteTransformParametersEachIteration "false")
+(WriteResultImage "true")
+(ResultImagePixelType "float")
+(ResultImageFormat "tiff")
+(WriteResultImageAfterEachResolution "true") 
+(WriteTransformParametersEachIteration "true")
 (WriteTransformParametersEachResolution "true")
 
 //Maximum number of iterations in each resolution level:
-(MaximumNumberOfIterations 2000)
+(MaximumNumberOfIterations 1000)
 
 //Number of grey level bins in each resolution level:
 (NumberOfHistogramBins 32 )
+(NumberOfFixedHistogramBins 32 )
+(NumberOfMovingHistogramBins 32 )
 (FixedKernelBSplineOrder 3)
 (MovingKernelBSplineOrder 3)
 (FixedLimitRangeRatio 0.0)
 (MovingLimitRangeRatio 0.0)
 
 // sampler:
-(ImageSampler "RandomCoordinate")
+(ImageSampler "Grid")
+(SampleGridSpacing 2 2 2)
+
 (FixedImageBSplineInterpolationOrder 1 )
-(UseRandomSampleRegion "true")
-(SampleRegionSize 50.0)
+(UseRandomSampleRegion "false")
+(SampleRegionSize 20.0)
 (CheckNumberOfSamples "false")
 (NewSamplesEveryIteration "true" )
 
@@ -70,4 +85,4 @@
 //SP: Param_alpha in each resolution level. a_k = a/(A+k+1)^alpha
 (SP_alpha 0.6 ) 
 
-
+(UseFastAndLowMemoryVersion "true")
