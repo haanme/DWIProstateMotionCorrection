@@ -8,64 +8,6 @@ mask_matfile_basedir_hB = '/Users/eija/Desktop/prostate_MR/PET_MR_dwis/Carimas27
 mask_matfile_basedir_lB = '/Users/eija/Desktop/prostate_MR/PET_MR_dwis/Carimas27projectfiles_Lb_work_2rep/ROI_mat_files'
 
 #
-# Print all DICOM data
-#
-# input_dir    - DICOM directory that is printed
-#
-def print_dcm(input_file):
-    import DicomIO
-    dcmio = DicomIO.DicomIO()
-    dwidcm = dcmio.ReadDICOM_frames(input_file)
-    for vol_i in range(len(dwidcm)):
-        print "frame " + str(vol_i+1)
-        for z_i in range(len(dwidcm[vol_i])):
-            print str(dwidcm[vol_i][z_i].FrameReferenceTime) + " - " + str(dwidcm[vol_i][z_i].ImagePositionPatient[2])
-
-#
-# Get subvolumes
-#
-# dwidcm        - DICOM source data
-# volume_list   - list of volume indexes for output
-# bounds        - bounds of subvolumes
-# output_prefix - output prefix
-#
-def get_subvolumes(input_dir, volume_list, bounds, output_prefix):
-    import dicom
-    import DicomIO
-    import shutil
-    import numpy as np
-    dcmio = DicomIO.DicomIO()
-    from nipype.utils.filemanip import split_filename
-    # resolve output directory and volumes
-    out_dir_base = experiment_dir + '/' + output_prefix + '/' + 'subvolumes'
-    filenames_all = []
-    outdirs_all = []
-    out_vols_all = []
-    for vol_i in range(len(volume_list)):
-        out_dir = out_dir_base + '_' + str(volume_list[vol_i])
-        out_vols = []
-        dwivolume = dwidcm[volume_list[vol_i]]
-        #take subregion from volume
-        for slice_i in range(len(dwivolume)):
-            pixel_array = dwivolume[slice_i].pixel_array[bounds[2]:bounds[3],bounds[0]:bounds[1]]
-            dwivolume[slice_i].PixelData = pixel_array.astype(np.uint16).tostring()
-            dwivolume[slice_i].Columns = bounds[1]-bounds[0]
-            dwivolume[slice_i].Rows = bounds[3]-bounds[2]
-        #append volume to lists
-        out_vols.append(dwivolume)
-        out_vols_all.append(dwivolume)
-        # Create output directory if it does not exist
-        if not os.path.exists(out_dir):
-            os.makedirs(out_dir)
-        else:
-            shutil.rmtree(out_dir)
-            os.makedirs(out_dir)
-        filenames = dcmio.WriteDICOM_frames(out_dir, out_vols, 'IM')
-        filenames_all.append(filenames)
-        outdirs_all.append(out_dir)
-    return outdirs_all, filenames_all, out_vols_all
-
-#
 # Convert ASCII fitting results to DICOM
 #
 # in_file    - ASCII input file
@@ -154,6 +96,7 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--dicomdir", dest="dicomdir", help="dicomdir", required=True)
     parser.add_argument("--subject", dest="subject", help="subject id", required=True)
+    parser.add_argument("--suffix", dest="suffix", help="filename suffix", required=True)
     args = parser.parse_args()
 
     # Read subregion coordinates of non-corrected and corrected DICOMs
@@ -163,12 +106,12 @@ if __name__ == "__main__":
     DICOMbase = experiment_dir + '/' + out_prefix + '/'
     print "Converting non-corrected"
     try:
-        ASCII2DICOM(ASCIIbase + 'Noncorrected_ASCII.txt', DICOMbase + 'Noncorrected', args.subject, subregion_in_originalDICOM)
+        ASCII2DICOM(ASCIIbase + 'Noncorrected_ASCII.txt', DICOMbase + 'FromASCII_Noncorrected', args.subject, subregion_in_originalDICOM)
     except Exception as inst:
         raise
     print "Converting motion corrected"
     try:
-        ASCII2DIOM(ASCIIbase + 'Motioncorrected_ASCII.txt', DICOMbase + 'Motioncorrected', args.subject, subregion_in_originalDICOM)
+        ASCII2DIOM(ASCIIbase + 'Motioncorrected_ASCII.txt', DICOMbase + 'FromASCII_Motioncorrected', args.subject, subregion_in_originalDICOM)
     except Exception as inst:
         raise
 

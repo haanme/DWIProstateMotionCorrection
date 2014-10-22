@@ -267,8 +267,15 @@ def read_log(input_file):
     read_state = 0
     resolutions = []
     iterations = []
+    filename = '<unknown file>'
+    metric = '<unknown metric>'
     for line_i in range(len(lines)):
         line = lines[line_i]
+        if line.startswith('Running elastix with parameter file'):
+            filename = line[len('Running elastix with parameter file'):]
+        if line.startswith('(Metric'):
+            splitted_line = line.split('"')
+            metric = splitted_line[1]
         if read_state == 0 and line.startswith('1:ItNr'):
             read_state = 1
             resolution_names = []
@@ -279,12 +286,13 @@ def read_log(input_file):
             continue
         if read_state == 1 and line.startswith('Time spent'):
             read_state = 0
-            resolutions.append({'data':np.array(iterations), 'names':resolution_names, 'endcondition':lines[line_i+1]})
+            resolutions.append({'data':np.array(iterations), 'names':resolution_names, 'endcondition':lines[line_i+1], 'filename':filename, 'metric':metric})
             iterations = []
             continue
         if read_state == 1:
             iterations.append(line.split())
-    return resolutions[0:-2]
+#return resolutions[0:-2]
+    return resolutions
 
 #
 # Plots iteration info into pdf
@@ -311,20 +319,21 @@ def plot_iterationinfo(loginfo, out_dir):
     # Go through resolutions
     no_resolutions = len(loginfo)
     fig = plt.figure()
-    fig.subplots_adjust(hspace=.5)
+    fig.subplots_adjust(hspace=0.75)
     fig.subplots_adjust(wspace=.01)
-    fig.subplots_adjust(left=0.15)
+    fig.subplots_adjust(left=0.1)
     fig.subplots_adjust(right=0.95)
     fig.subplots_adjust(top=0.95)
-    fig.subplots_adjust(bottom=0.05)
+    fig.subplots_adjust(bottom=0.1)
     fig.suptitle('Deformation convergence', fontsize=12)
+    print str(no_resolutions) + ' resolutions'
     for resolution_i in range(no_resolutions):
         resolution = loginfo[resolution_i]['data']
-        ax = fig.add_subplot(no_resolutions, 1, resolution_i)
+        ax = fig.add_subplot(no_resolutions, 1, resolution_i+1)
         x1 = np.array(range(1,resolution.shape[0]+1)).T
         ax.plot(x1, resolution[:,1].T, 'yo-')
-        ax.set_xlabel(loginfo[resolution_i]['endcondition'], fontsize=8, labelpad=0)
-        ax.set_ylabel(loginfo[resolution_i]['names'][1], labelpad=0.1)
+        ax.set_xlabel((loginfo[resolution_i]['filename'] + '(' + loginfo[resolution_i]['metric'] + '):' + loginfo[resolution_i]['endcondition']), fontsize=8, labelpad=0)
+        ax.set_ylabel('Metric', labelpad=0.1, fontsize=6)
         ax.tick_params(axis='both', which='major', labelsize=8)
         ax.tick_params(axis='both', which='minor', labelsize=6)
     pdf.savefig(fig)
@@ -353,16 +362,20 @@ if __name__ == "__main__":
     B0_images = []
     parameter_files = []
     disp_fields = []
+
+
+    print "Loading deformed DICOM image"
+    dcmio = DicomIO.DicomIO()
+    dwidcm = dcmio.ReadDICOM_frames(experiment_dir + os.sep + args.subject + '/Motioncorrected')
+    dwishape = [dwidcm[0][0].pixel_array.shape[0], dwidcm[0][0].pixel_array.shape[1], len(dwidcm[0]), len(dwidcm)]
+
     for subdir_i in range(len(subdirs_for_QC)):
         subdir = experiment_dir + os.sep + args.subject + os.sep + subdirs_for_QC[subdir_i]
+        print str(subdir_i) + ':' + subdir
         loginfo = read_log(subdir + os.sep + 'elastix.log')
         plot_iterationinfo(loginfo, subdir)
-        continue
-        print "Loading B-0 of deformed image"
-        dcmio = DicomIO.DicomIO()
-        dwidcm = dcmio.ReadDICOM_frames(experiment_dir + os.sep + args.subject + '/Motioncorrected')
-        dwishape = [dwidcm[0][0].pixel_array.shape[0], dwidcm[0][0].pixel_array.shape[1], len(dwidcm[0]), len(dwidcm)]
-        B0_images.append(dwidcm[0])
+
+        B0_images.append(dwidcm[subdir_i])
         TransformParameters_paths = glob.glob((experiment_dir + os.sep + args.subject + os.sep + subdirs_for_QC[subdir_i] + os.sep + 'TransformParameters.*.txt'))
         parameter_file = TransformParameters_paths[-1]
         parameter_files.append(parameter_file)
@@ -373,4 +386,4 @@ if __name__ == "__main__":
             raise
         disp_fields.append(disp_field)
     print "Creating QC pdf"
-#    plot_deformation_vectors(disp_fields, parameter_files, args.subject, subdirs_for_QC, B0_images)
+    plot_deformation_vectors(disp_fields, parameter_files, args.subject, subdirs_for_QC, B0_images)

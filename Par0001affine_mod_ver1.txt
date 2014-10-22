@@ -1,4 +1,4 @@
-// Description: elastixpaper, translation
+// Description: elastixpaper, affine
 
 //ImageTypes
 (FixedInternalImagePixelType "float")
@@ -11,31 +11,28 @@
 (FixedImagePyramid "FixedSmoothingImagePyramid")
 (MovingImagePyramid "MovingSmoothingImagePyramid")
 (Interpolator "BSplineInterpolator")
-//(Metric "AdvancedMattesMutualInformation")
-(Metric "NormalizedMutualInformation")
+(Metric "AdvancedMattesMutualInformation")
 (Optimizer "StandardGradientDescent")
 (ResampleInterpolator "FinalBSplineInterpolator")
 (Resampler "DefaultResampler")
-(Transform "TranslationTransform")
+(Transform "AffineTransform")
 
 (ErodeMask "false")
 
 (AutomaticScalesEstimation "true")
 (AutomaticTransformInitialization "false")
 
-(NumberOfResolutions 1)
+(NumberOfResolutions 4)
 
 (HowToCombineTransforms "Compose")
 
-(WriteResultImage "true")
-(ResultImagePixelType "float")
-(ResultImageFormat "tiff")
+(WriteResultImage "false")
 (WriteResultImageAfterEachResolution "false") 
 (WriteTransformParametersEachIteration "false")
 (WriteTransformParametersEachResolution "true")
 
 //Maximum number of iterations in each resolution level:
-(MaximumNumberOfIterations 100)
+(MaximumNumberOfIterations 2000)
 
 //Number of grey level bins in each resolution level:
 (NumberOfHistogramBins 32 )
@@ -45,9 +42,9 @@
 (MovingLimitRangeRatio 0.0)
 
 // sampler:
-(ImageSampler "Grid")
+(ImageSampler "RandomCoordinate")
 (FixedImageBSplineInterpolationOrder 1 )
-(UseRandomSampleRegion "false")
+(UseRandomSampleRegion "true")
 (SampleRegionSize 50.0)
 (CheckNumberOfSamples "false")
 (NewSamplesEveryIteration "true" )
@@ -65,11 +62,12 @@
 (DefaultPixelValue 0)
 
 //SP: Param_a in each resolution level. a_k = a/(A+k+1)^alpha
-(SP_a 250.0 250.0 50.0)
+(SP_a 2000.0)
 
 //SP: Param_A in each resolution level. a_k = a/(A+k+1)^alpha
-(SP_A 200.0 200.0 200.0)
+(SP_A 200.0)
 
 //SP: Param_alpha in each resolution level. a_k = a/(A+k+1)^alpha
-(SP_alpha 0.6 0.6 0.6)
+(SP_alpha 0.6 ) 
+
 

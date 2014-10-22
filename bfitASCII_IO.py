@@ -132,11 +132,10 @@ class bfitASCII_IO:
                 outdata['number'] = int(float(subs[0]))
                 continue
             if (SI_file and line_i < 6) or (not SI_file and line_i < 8):
-                print "continue " + line
+                #print "continue " + line
                 continue
-            print "number str " + line
+            #print "number str " + line
             # resolve parameter values
             outdata['data'].append([float(s) for s in line.split()])
         outdata['data'] = np.array(outdata['data'])
         return outdata
-

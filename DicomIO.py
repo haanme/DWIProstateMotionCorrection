@@ -73,17 +73,24 @@ class DicomIO:
                 continue
             try:
                 ds = dicom.read_file(filename)
-                if not (ds.FrameReferenceTime in FrameReferenceTimes):
-                    FrameReferenceTimes.append(ds.FrameReferenceTime)
-                    frame_list.append([])
+                if ds.has_key(dicom.tag.Tag(0x0054,0x1300)):
+                    if not (ds.FrameReferenceTime in FrameReferenceTimes):
+                        FrameReferenceTimes.append(ds.FrameReferenceTime)
+                        frame_list.append([])
                 slice_list.append(ds)
             except Exception as e:
                 raise DICOMReadError(e.message)
-        #collect data for frame in order
-        FrameReferenceTimes.sort()
-        for slice_i in range(len(slice_list)):
-            frame_index = FrameReferenceTimes.index(slice_list[slice_i].FrameReferenceTime)
-            frame_list[frame_index].append(slice_list[slice_i])
+        #collect data for frames in order
+        if len(FrameReferenceTimes) > 0:
+            FrameReferenceTimes.sort()
+            for slice_i in range(len(slice_list)):
+                frame_index = FrameReferenceTimes.index(slice_list[slice_i].FrameReferenceTime)
+                frame_list[frame_index].append(slice_list[slice_i])
+        #stack all to one frame
+        else:
+            frame_list.append([])
+            for slice_i in range(len(slice_list)):
+                frame_list[0].append(slice_list[slice_i])                        
         #sort frame data
         for frame_i in range(len(frame_list)):
             frame_list[frame_i].sort(key=lambda x: (x.ImagePositionPatient[2]))

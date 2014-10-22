@@ -1,4 +1,4 @@
-// Description: elastixpaper, translation
+// Description: elastixpaper, bspline8
 
 //ImageTypes
 (FixedInternalImagePixelType "float")
@@ -11,19 +11,17 @@
 (FixedImagePyramid "FixedSmoothingImagePyramid")
 (MovingImagePyramid "MovingSmoothingImagePyramid")
 (Interpolator "BSplineInterpolator")
-//(Metric "AdvancedMattesMutualInformation")
 (Metric "NormalizedMutualInformation")
 (Optimizer "StandardGradientDescent")
 (ResampleInterpolator "FinalBSplineInterpolator")
 (Resampler "DefaultResampler")
-(Transform "TranslationTransform")
+(Transform "BSplineTransform")
 
-(ErodeMask "false")
+(ErodeMask "false" )
 
-(AutomaticScalesEstimation "true")
-(AutomaticTransformInitialization "false")
-
-(NumberOfResolutions 1)
+(NumberOfResolutions 3)
+(FinalGridSpacingInPhysicalUnits 8.0)
+(GridSpacingSchedule 8.0 3.0 1.0)
 
 (HowToCombineTransforms "Compose")
 
@@ -35,28 +33,26 @@
 (WriteTransformParametersEachResolution "true")
 
 //Maximum number of iterations in each resolution level:
-(MaximumNumberOfIterations 100)
+(MaximumNumberOfIterations 1000 ) 
 
 //Number of grey level bins in each resolution level:
 (NumberOfHistogramBins 32 )
-(FixedKernelBSplineOrder 3)
-(MovingKernelBSplineOrder 3)
 (FixedLimitRangeRatio 0.0)
 (MovingLimitRangeRatio 0.0)
-
-// sampler:
-(ImageSampler "Grid")
-(FixedImageBSplineInterpolationOrder 1 )
-(UseRandomSampleRegion "false")
-(SampleRegionSize 50.0)
-(CheckNumberOfSamples "false")
-(NewSamplesEveryIteration "true" )
+(FixedKernelBSplineOrder 3)
+(MovingKernelBSplineOrder 3)
 
 //Number of spatial samples used to compute the mutual information in each resolution level:
+(ImageSampler "RandomCoordinate")
 (NumberOfSpatialSamples 2000 )
+(FixedImageBSplineInterpolationOrder 1)
+(UseRandomSampleRegion "true")
+(SampleRegionSize 50.0)
+(CheckNumberOfSamples "false")
+(NewSamplesEveryIteration "true")
 
 //Order of B-Spline interpolation used in each resolution level:
-(BSplineInterpolationOrder 1 )
+(BSplineInterpolationOrder 1)
 
 //Order of B-Spline interpolation used for applying the final deformation:
 (FinalBSplineInterpolationOrder 3)
@@ -64,12 +60,13 @@
 //Default pixel value for pixels that come from outside the picture:
 (DefaultPixelValue 0)
 
+//Parameters for Gradient Descent
 //SP: Param_a in each resolution level. a_k = a/(A+k+1)^alpha
-(SP_a 250.0 250.0 50.0)
-
+//(SP_a 125.0 125.0 25.0)
+(SP_a 300.0 300.0 60.0)
 //SP: Param_A in each resolution level. a_k = a/(A+k+1)^alpha
 (SP_A 200.0 200.0 200.0)
-
 //SP: Param_alpha in each resolution level. a_k = a/(A+k+1)^alpha
 (SP_alpha 0.6 0.6 0.6)
+
 

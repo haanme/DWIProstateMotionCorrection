@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 
 experiment_dir = '/Users/eija/Desktop/prostate_MR/pipelinedata'
-#mask_matfile_basedir = '/Users/eija/Desktop/prostate_MR/PET_MR_dwis/Carimas27projectfiles_Hb_work_all_noGS/ROI_mat_files'
-mask_matfile_basedir_hB = '/Users/eija/Desktop/prostate_MR/PET_MR_dwis/Carimas27projectfiles_Hb_work_all_noGS_for_Motion_Cor/ROI_mat_files'
-mask_matfile_basedir_lB = '/Users/eija/Desktop/prostate_MR/PET_MR_dwis/Carimas27projectfiles_Lb_work_2rep/ROI_mat_files'
+param_rigid = 'Par0001rigid_T2toDWI.txt'
+T2_DICOMpath_basedir = '/Users/eija/Desktop/prostate_MR/T2W_TSE_2.5m'
+mask_DICOMpath_basedir = '/Users/eija/Desktop/prostate_MR/T2W_Carimas_project_files/DICOMmasks'
 
 #
 # Splits subject ID into parts
@@ -19,138 +19,19 @@ def split_subjectid(subjectid):
     return patient_no_str, patientname_str, bset_str, rep_str
 
 #
-# Resolves ROI that is a square-shaped bounding box around ROI pixels
-#
-# ROIpixel_array - 2-dimensional array
-# padding        - number of empty pixels around ROI
-#
-def resolve_boundingbox(ROIpixel_array, padding):
-    import numpy as np
-
-    # Find minimum and maximum coordinates [xmin,xmax,ymin,ymax]
-    bounds = [float("inf"), float("-inf"), float("inf"), float("-inf")]
-    xlen = ROIpixel_array.shape[0]
-    ylen = ROIpixel_array.shape[1]
-    for xi in range(xlen):
-        for yi in range(ylen):
-            if ROIpixel_array[xi][yi] != 0:
-                if xi < bounds[0]:
-                    bounds[0] = xi
-                if xi > bounds[1]:
-                    bounds[1] = xi
-                if yi < bounds[2]:
-                    bounds[2] = yi
-                if yi > bounds[3]:
-                    bounds[3] = yi
-    # Add padding
-    bounds[0] = bounds[0] - padding
-    bounds[1] = bounds[1] + padding
-    bounds[2] = bounds[2] - padding
-    bounds[3] = bounds[3] + padding
-    if bounds[0] < 0:
-        bounds[0] = 0
-    if bounds[1] > xlen-1:
-        bounds[1] = xlen-1
-    if bounds[2] < 0:
-        bounds[2] = 0
-    if bounds[3] > ylen-1:
-        bounds[3] = ylen-1
-    # Create bounding box ROI
-    outROI = np.zeros(ROIpixel_array.shape)
-    for xi in range(bounds[0], bounds[1]+1):
-        for yi in range(bounds[2], bounds[3]+1):
-            outROI[xi][yi] = 1
-    return outROI, bounds
-
-#
-# Resolve mat-filename containing ROI masks
+# Resolve DICOM containing ROI masks
 #
 # output_prefix - output prefix
 #
 def resolve_matfilename(output_prefix):
+    import glob
+
     # Resolve mat-file name
     parts = output_prefix.split('_')
     patient_no_str, patientname_str, bset_str, rep_str = split_subjectid(output_prefix)
-    #    if not (bset_str=='hB' or bset_str=='lB'):
-    if not (bset_str=='hB'):
-        raise Exception((output_prefix + " UNSUPPORTED B-SET"))
-    if (bset_str=='hB'):
-        matfilename = mask_matfile_basedir_hB + '/' + patient_no_str + '_' + rep_str + '_DICOMconverted.mat'
-    if (bset_str=='lB'):
-        matfilename = mask_matfile_basedir_lB + '/' + patient_no_str + '_' + rep_str + '_DICOMconverted.mat'
+    paths = glob.glob('')
+
     return matfilename
-
-#
-# Get mask image in DICOM from mat-file data
-#
-# output_prefix - output prefix
-# input_shape   - input frame shape
-# input_plans   - DICOM sample slices
-# matfilename   - mat-file containing ROIs
-# ROIindexes    - ROI indexes that are used to create bounding mask
-# padding       - number of empty pixels around ROI
-#
-def get_boundsmask(output_prefix, input_shape, input_plans, matfilename, ROIindexes, padding):
-    import scipy.io
-    import os
-    import numpy as np
-    import copy
-    
-    mat = scipy.io.loadmat(matfilename)
-    # Get list of ROIs
-    ROIs = mat['ROIs'].tolist()[0]
-    # Get list of slices where ROIs are located
-    ROIslices = mat['ROIslices'][0].tolist()
-    # Create and write mask images
-    print str(len(ROIs)) + " ROIs"
-    shape = [input_shape[0], input_shape[1]]
-
-    # Create mask around combined ROIs
-    ROIpixel_array_combined = np.zeros(shape)
-    for roi_i in range(len(ROIindexes)):
-        ROIlist = ROIs[ROIindexes[roi_i]].tolist()
-        ROIname = str(ROIlist[0][0][0][0])
-        ROIpixel_array = ROIlist[0][0][1]
-        print "catenating " + ROIname
-        ROIpixel_array_combined = ROIpixel_array_combined + ROIpixel_array
-    for xi in range(shape[0]):
-        for yi in range(shape[1]):
-            if ROIpixel_array_combined[xi][yi] != 0:
-                ROIpixel_array_combined[xi][yi] = 1
-    ROIpixel_array, bounds = resolve_boundingbox(ROIpixel_array_combined, padding)
-    # Add z bounds to make [xmin,xmax,ymin,ymax,zmin,zmax]
-    bounds.append(0)
-    bounds.append(input_shape[2]-1)
-
-    ROI_filenames = []
-    dcmio = DicomIO.DicomIO()
-    # Resolve ROI data
-    ROIlist = ROIs[roi_i].tolist()
-    ROIname = "Boundingbox"
-    print ROIname
-    #print ROIpixel_array
-    # Resolve output name
-    out_dir = experiment_dir + '/' + output_prefix + '/' + 'ROImask' + str(roi_i+1) + '_' + ROIname
-    # Place mask into intensity values
-    output_frame = []
-    #print str(len(input_frame[0])) + " slices of size " + str(shape)
-    for slice_i in range(input_shape[2]):
-        slice = copy.deepcopy(input_plans[slice_i])
-        if slice_i != ROIslices[0]:
-            #print "zero-slice:" + str(slice_i) + " " + str(shape)
-            slice.PixelData = np.zeros(shape).astype(np.uint16).tostring()
-        else:
-            #print " ROI-slice:" + str(slice_i) + " " + str(ROIpixel_array.shape)
-            slice.PixelData = ROIpixel_array.astype(np.uint16).tostring()
-        output_frame.append(slice)
-    # Create output directory if it does not exist
-    if not os.path.exists(out_dir):
-        os.makedirs(out_dir)
-    # Write data
-    filenames = dcmio.WriteDICOM_frames(out_dir, [output_frame], 'IM')
-    ROI_filenames.append(filenames[ROIslices[0]])
-
-    return out_dir, ROI_filenames, ROIslices[0], bounds
 
 #
 # Run elastix
@@ -161,7 +42,7 @@ def get_boundsmask(output_prefix, input_shape, input_plans, matfilename, ROIinde
 # output_prefix     - output prefix
 # output_sub_prefix - output subfolder prefix
 #
-def elastix(input_file, target_file, mask_file, output_prefix, output_sub_prefix, param_rigid, param_BSpline):
+def elastix(input_file, target_file, mask_file, output_prefix, output_sub_prefix):
     from os.path import abspath as opap
     from nipype.interfaces.base import CommandLine
     from nipype.utils.filemanip import split_filename
@@ -176,8 +57,7 @@ def elastix(input_file, target_file, mask_file, output_prefix, output_sub_prefix
     print "creating: " + out_dir
     os.makedirs(out_dir)
 
-    cmd = CommandLine(('/Users/eija/Documents/SW/Elastix/elastix_sources_v4.7/bin/bin/elastix -f %s -m %s -out %s -p %s -p %s -threads 8') % (target_file, input_file, out_dir, param_rigid, param_BSpline))
-#   cmd = CommandLine(('/Users/eija/Documents/SW/Elastix/elastix_sources_v4.7/bin/bin/elastix -f %s -m %s -out %s -p %s -threads 8') % (target_file, input_file, out_dir, param_rigid))
+    cmd = CommandLine(('/Users/eija/Documents/SW/Elastix/elastix_sources_v4.7/bin/bin/elastix -f %s -m %s -out %s -p %s -threads 8') % (target_file, input_file, out_dir, param_rigid))
 
     print "elastix: " + cmd.cmd
     cmd.run()
@@ -329,12 +209,7 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--dicomdir", dest="dicomdir", help="dicomdir", required=True)
     parser.add_argument("--subject", dest="subject", help="subject id", required=True)
-    parser.add_argument("--coreg_rigid", dest="param_rigid", help="Translation parameters file", required=True)
-    parser.add_argument("--coreg_nonrigid", dest="param_BSpline", help="Deformation parameters file", required=True)
     args = parser.parse_args()
-
-    param_rigid = args.param_rigid
-    param_BSpline = args.param_BSpline
 
     errors = 0
 
@@ -363,17 +238,6 @@ if __name__ == "__main__":
         errors = errors + 1
         sys.exit(1)
 
-    print "RESOLVING BOUNDS"
-        #    try:
-    mask_file, mask_file_ROIslice_filename, ROIslice_i, bounds = get_boundsmask(args.subject, dwishape, dwidcm[0], matfilename, [0], 20)
-    np.savetxt((experiment_dir + '/' + args.subject + '/' + 'subregion.txt'),bounds, fmt='%f', header=('subject ' + args.subject))
-        #except Exception as inst:
-        #errors = errors + 1
-        #print type(inst)     # the exception instance
-        #print inst.args      # arguments stored in .args
-        #print inst           # __str__ allows args to be printed directly
-#sys.exit(1)
-
     # Extract first volume from dwi
     print "RESOLVING SUBVOLUMES"
     try:
@@ -385,19 +249,9 @@ if __name__ == "__main__":
         print inst           # __str__ allows args to be printed directly
         sys.exit(1)
 
-    # Write motioncorrected as single multifile DICOM subfolder
-    print "COMBINING ORIGINAL SUB-WINDOWED"
-    try:
-        multidicom2multidicom(subvol_dirs, 'Noncorrected', subvols_orig, args.subject)
-    except Exception as inst:
-        errors = errors + 1
-        print type(inst)     # the exception instance
-        print inst.args      # arguments stored in .args
-        print inst           # __str__ allows args to be printed directly
-        sys.exit(1)
 
     # Run elastix for all frames, in mhd format, results in single-file DICOM
-    print "DEFORMATION"
+    print "CO-REGISTRATION"
     try:
         subvol_0_file,rawfile,txtfile = conv.dicom2mhd(subvol_dirs[0], args.subject)
     except:
@@ -409,8 +263,7 @@ if __name__ == "__main__":
         try:
             subvols_i_file,rawfile,txtfile = conv.dicom2mhd(subvol_dirs[subvol_i], args.subject)
             print subvols_i_file + " > " + subvol_0_file
-            out_dir = ('Motioncorrected_' + str(subvol_i) + '_to_' + str(0))
-            mc_frame_files = elastix(subvols_i_file, subvol_0_file, mask_file_ROIslice_filename[0], args.subject, out_dir, param_rigid, param_BSpline)
+            mc_frame_files = elastix(subvols_i_file, subvol_0_file, mask_file_ROIslice_filename[0], args.subject, ('Motioncorrected_' + str(subvol_i) + '_to_' + str(0)))
             result_frames_tiff.append(mc_frame_files[-1])
         except Exception as inst:
             errors = errors + 1

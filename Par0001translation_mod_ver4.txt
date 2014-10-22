@@ -35,7 +35,7 @@
 (WriteTransformParametersEachResolution "true")
 
 //Maximum number of iterations in each resolution level:
-(MaximumNumberOfIterations 100)
+(MaximumNumberOfIterations 200)
 
 //Number of grey level bins in each resolution level:
 (NumberOfHistogramBins 32 )
