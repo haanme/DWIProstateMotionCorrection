@@ -24,14 +24,24 @@ class bfitASCIIWriteError(bfitASCIIError):
 
 class bfitASCII_IO:
 
-    def Write3D(self, path, data):
+    def Write3D(self, path, data, SI_file=True):
 
         subwindow = data['subwindow']
-        ROI_No = data['ROI_No']
+        if data.has_key('ROI_no'):
+            ROI_No = data['ROI_No']
+        else:
+            ROI_No = data['number']
         bset = data['bset']
         ROIslice = data['ROIslice']
         name = data['name']
-        SIs = data['SIs']
+        if data.has_key('SIs'):
+            SIs = data['SIs']
+        else:
+            SIs = data['data']
+        if not SI_file:
+            executiontime = data['executiontime']
+            description = data['description']
+            parameters = data['parameters']
 
         f = open(path, 'w')
         # write header information
@@ -46,19 +56,33 @@ class bfitASCII_IO:
             f.write('%d ' % ROIslice[i])
         f.write(']\n')
         f.write('name: %s\n' % name)
-
-        # write SI data
-        f.write('SIs: \n')
-        data_length = len(SIs)
-        print_step = data_length/10
-        bset_length = len(bset)
-        for i in range(len(SIs)):
-            for j in range(bset_length):
-                f.write('%.15f ' % SIs[i][j])
-            f.write('\n')
-            if(np.mod(i,print_step) == 0):
-                print ('writing %d/%d' % (i+1, data_length))
-        print ('writing %d/%d' % (data_length, data_length))
+        if not SI_file:
+            f.write('executiontime: %d seconds\n' % executiontime)
+            f.write('description: %s\n' % description)
+            f.write('parameters: %s\n' % parameters)
+            data_length = len(SIs)
+            print_step = data_length/10
+            bset_length = SIs.shape[1]
+            for i in range(len(SIs)):
+                for j in range(bset_length):
+                    f.write('%.15f ' % SIs[i][j])
+                f.write('\n')
+                if(np.mod(i,print_step) == 0):
+                    print ('writing %d/%d' % (i+1, data_length))
+            print ('writing %d/%d' % (data_length, data_length))
+        else:
+            f.write('SIs: \n')
+            # write SI data
+            data_length = len(SIs)
+            print_step = data_length/10
+            bset_length = len(bset)
+            for i in range(len(SIs)):
+                for j in range(bset_length):
+                    f.write('%.15f ' % SIs[i][j])
+                f.write('\n')
+                if(np.mod(i,print_step) == 0):
+                    print ('writing %d/%d' % (i+1, data_length))
+            print ('writing %d/%d' % (data_length, data_length))
         f.close()
 
     def Read(self, path, SI_file):
@@ -111,7 +135,7 @@ class bfitASCII_IO:
             if line.find('description') == 0:
                 subs = line.split(':')
                 subs = subs[1:]
-                outdata['description'] = subs[0].strip()
+                outdata['description'] = ':'.join(subs).strip()
                 continue
             # resolve name
             if line.find('name') == 0:

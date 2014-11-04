@@ -3,9 +3,6 @@
 experiment_dir = '/Users/eija/Desktop/prostate_MR/pipelinedata'
 param_rigid = 'Par0001translation.txt'
 param_BSpline = 'Par0001bspline08.txt'
-#mask_matfile_basedir = '/Users/eija/Desktop/prostate_MR/PET_MR_dwis/Carimas27projectfiles_Hb_work_all_noGS/ROI_mat_files'
-mask_matfile_basedir_hB = '/Users/eija/Desktop/prostate_MR/PET_MR_dwis/Carimas27projectfiles_Hb_work_all_noGS_for_Motion_Cor/ROI_mat_files'
-mask_matfile_basedir_lB = '/Users/eija/Desktop/prostate_MR/PET_MR_dwis/Carimas27projectfiles_Lb_work_2rep/ROI_mat_files'
 outputASCIIdir = '/Users/eija/Desktop/prostate_MR/ASCII_prostatemask'
 
 #
@@ -187,14 +184,17 @@ if __name__ == "__main__":
     names = glob.glob(analyze_all.prostatemask_DICOM + os.sep + args.subject + '*')
     print names
     for name in names:
-
         # Write motioncorrected as single multifile DICOM subfolder
         print "Converting non-corrected, inside " + name
         try:
             DICOM2ASCII_ROI('Noncorrected', args.subject, name, subregion_in_originalDICOM)
         except Exception as inst:
             raise
-        continue
+        print "Converting motion corrected"
+        try:
+            DICOM2ASCII_ROI('Motioncorrected', args.subject, name, subregion_in_originalDICOM)
+        except Exception as inst:
+            raise
         print "Converting motion corrected"
         try:
             DICOM2ASCII_ROI('Motioncorrected', args.subject, name, subregion_in_originalDICOM)

@@ -164,8 +164,8 @@ def elastix(input_file, target_file, mask_file, output_prefix, output_sub_prefix
         os.makedirs(out_dir)
 
             #    cmd = CommandLine(('elastix -f %s -m %s -fMask %s -out %s -p %s -p %s -threads 8') % (target_file, input_file, mask_file, out_dir, param_rigid, param_BSpline))
-    #cmd = CommandLine(('/Users/eija/Documents/SW/Elastix/elastix_sources_v4.7/bin/bin/elastix -f %s -m %s -out %s -p %s -threads 8') % (target_file, input_file, out_dir, param_rigid))
-    cmd = CommandLine(('/Users/eija/Documents/SW/Elastix/elastix_sources_v4.7/bin/bin/elastix -f %s -m %s -out %s -p %s -p %s -threads 6') % (target_file, input_file, out_dir, param_rigid, param_BSpline))
+    #cmd = CommandLine(('/Users/eija/Desktop/SW/Elastix/elastix_macosx64_v4.7/bin/elastix -f %s -m %s -out %s -p %s -threads 8') % (target_file, input_file, out_dir, param_rigid))
+    cmd = CommandLine(('/Users/eija/Desktop/SW/Elastix/elastix_macosx64_v4.7/bin/elastix -f %s -m %s -out %s -p %s -p %s -threads 6') % (target_file, input_file, out_dir, param_rigid, param_BSpline))
 
     print "elastix: " + cmd.cmd
     cmd.run()

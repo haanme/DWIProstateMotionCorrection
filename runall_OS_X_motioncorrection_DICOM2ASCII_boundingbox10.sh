@@ -6,11 +6,10 @@
 #  Created by Harri Merisaari on 3/10/14.
 #
 set +e
-binaryname="python motioncorrection_4th_ASCII2DICOM.py"
-selectionfile="namelist_for_noncorrected_pmaps_failed.txt"
-reference_DICOM_dir="/Users/eija/Desktop/prostate_MR/PET_MR_dwis"
-input_dir="/Users/eija/Desktop/prostate_MR/ASCII_noncorrected_for_pmaps"
-out_basedir=$(echo $input_dir"DICOM")
+binaryname="python motioncorrection_3rd_DICOM2ASCII10.py"
+selectionfile="namelist_for_noncorrected_pmaps.txt"
+basedir="/Users/eija/Desktop/prostate_MR/pipelinedata"
+output_dir="/Users/eija/Desktop/prostate_MR/ASCII_noncorrected_for_pmaps"
 logfile="failures.txt"
 
 no_folders=(`wc -l $selectionfile`)
@@ -24,7 +23,7 @@ do
     f=$(echo $DWIbasedir$name1)
     subject_id=$name2
 
-    xtermcmd=$(echo "$binaryname --in_refdir $reference_DICOM_dir --in_ASCIIdir $input_dir --out_basedir $out_basedir --subject $subject_id --suffix _results")
+    xtermcmd=$(echo "$binaryname --basedir $basedir --outdir $output_dir --subject $subject_id --subdir Noncorrected10")
     echo $xtermcmd
     ret=$(eval $xtermcmd)
     if [ "$?" -eq "0" ]
@@ -36,4 +35,3 @@ do
         break
     fi
 done
-

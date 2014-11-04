@@ -5,16 +5,6 @@ Created on Tue Sep 30 15:52:00 2014
 @author: merisaah
 """
 
-#!/usr/bin/env python
-output_path = 'results_RMSEchange'
-original_raw_path = 'raw_Noncorrected'
-corrected_raw_path = 'raw_Motioncorrected'
-original_path = 'results_Noncorrected'
-corrected_path = 'results_Motioncorrected'
-prostatemask_DICOM = r'/Users/eija/Desktop/prostate_MR/Carimasproject_files_Hb_outline_v1013/DICOMmasks'
-original_DICOM = r'/Users/eija/Desktop/prostate_MR/PET_MR_dwis'
-
-
 #
 # Resolves image data from ASCII data for use
 #
@@ -81,7 +71,7 @@ def resolve_ASCIIparamdata(data, mask_img=None):
         img = resolve_ASCIIimgdata(data, mask_img.shape, mask_img)
 
     return img, dim, parameternames, slice_numbers, xy_bounds, bset, name
-   
+
 #
 # Resolves image data in DICOM containing ROIs
 #
@@ -204,100 +194,163 @@ def resolve_DICOMpath(output_prefix):
     print 'Searching DICOM from:' + (prostatemask_DICOM + os.sep + patient_no_str + '_' + patientname_str + '_*')
     paths = glob.glob((prostatemask_DICOM + os.sep + patient_no_str + '_' + patientname_str + '_*'))
     return paths[0]
-        
-from argparse import ArgumentParser
-import sys
-import os
-import DicomIO
-import conversions as conv
-import time
-import numpy as np
-import bfitASCII_IO
-import glob
-import plot_utils
 
-if __name__ == "__main__":
-#    parser = ArgumentParser()
-#    parser.add_argument("--dicomdir", dest="dicomdir", help="dicomdir", required=True)
-#    args = parser.parse_args()
+#
+# Resolves ROI that is a square-shaped bounding box around ROI pixels
+#
+# ROIpixel_array - 2-dimensional array
+# padding        - number of empty pixels around ROI
+#
+def resolve_boundingbox(ROIpixel_array, padding):
+    import numpy as np
 
-    errors = 0
+    # Find minimum and maximum coordinates [xmin,xmax,ymin,ymax]
+    bounds = [float("inf"), float("-inf"), float("inf"), float("-inf")]
+    xlen = ROIpixel_array.shape[0]
+    ylen = ROIpixel_array.shape[1]
+    for xi in range(xlen):
+        for yi in range(ylen):
+            if ROIpixel_array[xi][yi] != 0:
+                if xi < bounds[0]:
+                    bounds[0] = xi
+                if xi > bounds[1]:
+                    bounds[1] = xi
+                if yi < bounds[2]:
+                    bounds[2] = yi
+                if yi > bounds[3]:
+                    bounds[3] = yi
+    # Add padding
+    bounds[0] = bounds[0] - padding
+    bounds[1] = bounds[1] + padding
+    bounds[2] = bounds[2] - padding
+    bounds[3] = bounds[3] + padding
+    if bounds[0] < 0:
+        bounds[0] = 0
+    if bounds[1] > xlen-1:
+        bounds[1] = xlen-1
+    if bounds[2] < 0:
+        bounds[2] = 0
+    if bounds[3] > ylen-1:
+        bounds[3] = ylen-1
+    # Create bounding box ROI
+    outROI = np.zeros(ROIpixel_array.shape)
+    for xi in range(bounds[0], bounds[1]+1):
+        for yi in range(bounds[2], bounds[3]+1):
+            outROI[xi][yi] = 1
+    return outROI, bounds
 
+#
+# Get mask image in DICOM from mat-file data
+#
+# output_prefix - output prefix
+# input_shape   - input frame shape
+# input_plans   - DICOM sample slices
+# matfilename   - mat-file containing ROIs
+# ROIindexes    - ROI indexes that are used to create bounding mask
+# padding       - number of empty pixels around ROI
+#
+def get_boundsmask(output_prefix, input_shape, input_plans, matfilename, ROIindexes, padding):
+    import scipy.io
+    import os
+    import numpy as np
+    import copy
+
+    mat = scipy.io.loadmat(matfilename)
+    # Get list of ROIs
+    ROIs = mat['ROIs'].tolist()[0]
+    # Get list of slices where ROIs are located
+    ROIslices = mat['ROIslices'][0].tolist()
+    # Create and write mask images
+    print str(len(ROIs)) + " ROIs"
+    shape = [input_shape[0], input_shape[1]]
+
+    # Create mask around combined ROIs
+    ROIpixel_array_combined = np.zeros(shape)
+    for roi_i in range(len(ROIindexes)):
+        ROIlist = ROIs[ROIindexes[roi_i]].tolist()
+        ROIname = str(ROIlist[0][0][0][0])
+        ROIpixel_array = ROIlist[0][0][1]
+        print "catenating " + ROIname
+        ROIpixel_array_combined = ROIpixel_array_combined + ROIpixel_array
+    for xi in range(shape[0]):
+        for yi in range(shape[1]):
+            if ROIpixel_array_combined[xi][yi] != 0:
+                ROIpixel_array_combined[xi][yi] = 1
+    ROIpixel_array, bounds = resolve_boundingbox(ROIpixel_array_combined, padding)
+    # Add z bounds to make [xmin,xmax,ymin,ymax,zmin,zmax]
+    bounds.append(0)
+    bounds.append(input_shape[2]-1)
+
+    ROI_filenames = []
+    dcmio = DicomIO.DicomIO()
+    # Resolve ROI data
+    ROIlist = ROIs[roi_i].tolist()
+    ROIname = "Boundingbox"
+    print ROIname
+    #print ROIpixel_array
+    # Resolve output name
+    out_dir = experiment_dir + '/' + output_prefix + '/' + 'ROImask' + str(roi_i+1) + '_' + ROIname
+    # Place mask into intensity values
+    output_frame = []
+    #print str(len(input_frame[0])) + " slices of size " + str(shape)
+    for slice_i in range(input_shape[2]):
+        slice = copy.deepcopy(input_plans[slice_i])
+        if slice_i != ROIslices[0]:
+            #print "zero-slice:" + str(slice_i) + " " + str(shape)
+            slice.PixelData = np.zeros(shape).astype(np.uint16).tostring()
+        else:
+            #print " ROI-slice:" + str(slice_i) + " " + str(ROIpixel_array.shape)
+            slice.PixelData = ROIpixel_array.astype(np.uint16).tostring()
+        output_frame.append(slice)
     # Create output directory if it does not exist
-    if not os.path.exists(output_path):
-        os.makedirs(output_path)
-    filenames_raw = glob.glob((original_raw_path + os.sep + '*ASCII.txt'))
-    filenames_orig = glob.glob((original_path + os.sep + '*_results.txt'))
-    filenames_corr = glob.glob((corrected_path + os.sep + '*_results.txt'))
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
+    # Write data
+    filenames = dcmio.WriteDICOM_frames(out_dir, [output_frame], 'IM')
+    ROI_filenames.append(filenames[ROIslices[0]])
 
-    ASCIIio = bfitASCII_IO.bfitASCII_IO()
-    print filenames_raw
-    for fname_raw in filenames_raw:
-        splitted_raw = fname_raw.split(os.sep)
-        splitted_raw = splitted_raw[1].split('_')
-        splitted_raw = splitted_raw[:-2]
-        patient_name = ''.join([item + '_' for item in splitted_raw])
-        patient_name = patient_name[0:-1]
-        print 'Patient name ' + patient_name
-        if not patient_name.endswith('Set2'):
-            continue
-        # Reach for non-corrected fitted file
-        found_fname_orig = ''
-        for fname_orig in filenames_orig:
-            splitted_orig = fname_orig.split(os.sep)
-            splitted_orig = splitted_orig[1].split('_')
-            splitted_orig = splitted_orig[:-4]
-            if splitted_orig == splitted_raw:
-                found_fname_orig = fname_orig
-                break
-        # Reach for corrected fitted file
-        found_fname_corr = ''                
-        for fname_corr in filenames_corr:
-            splitted_corr = fname_orig.split(os.sep)
-            splitted_corr = splitted_corr[1].split('_')
-            splitted_corr = splitted_corr[:-4]
-            if splitted_corr == splitted_raw:
-                found_fname_corr = fname_corr
-                break
-        # Collect data for plotting
-        print 'Reading non-corrected: ' + (found_fname_orig)
-        data_orig = ASCIIio.Read((found_fname_orig), False)
-        data_orig_dim = resolve_ASCIIdimdata(data_orig)
-        data_orig_slice_numbers = data_orig['ROIslice']
-        data_orig_xy_bounds = data_orig['subwindow']
-        data_bounds = [data_orig_xy_bounds[0], data_orig_xy_bounds[1], data_orig_xy_bounds[2], data_orig_xy_bounds[3], data_orig_slice_numbers[0], data_orig_slice_numbers[-1]]
-        data_bounds = np.subtract(data_bounds, 1)
-        print 'Data bounds ' + str(data_bounds)
-        print 'Reading corrected: ' + (found_fname_corr)
-        data_corr = ASCIIio.Read((found_fname_corr), False)
+    return out_dir, ROI_filenames, ROIslices[0], bounds
 
-        fname_raw_orig = original_raw_path + os.sep + patient_name + '_Noncorrected_ASCII.txt'
-        fname_raw_corr = corrected_raw_path + os.sep + patient_name + '_Motioncorrected_ASCII.txt'
-        print 'Reading non-corrected raw: ' + (fname_raw_orig)
-        data_raw_orig = ASCIIio.Read((fname_raw_orig), True)
-        print 'Reading corrected raw: ' + (fname_raw_corr)
-        data_raw_corr = ASCIIio.Read((fname_raw_corr), True)
-
-        # Read DICOM mask data        
-        prefix = ''.join([item + '_' for item in splitted_raw])
-        DICOMpath = prostatemask_DICOM + os.sep + patient_name
-#        DICOMpath = resolve_DICOMpath(prefix)
-        if not os.path.exists(DICOMpath):
-            print (DICOMpath + " DOES NOT EXIST")
-            continue
-        ROIpixel_array_all, ROInames = resolve_DICOMROI_imgdata(DICOMpath)
-
-        print 'ROIs:' + str(ROInames)
-        print len(ROIpixel_array_all)
-
-        # Do plotting of ROI position, displacement-RMSE correlation, RMSE boxplot inside ROI
-        plot_utils.plotdataROI(fname_orig, data_corr, data_orig, data_raw_orig, data_raw_corr, ROIpixel_array_all, ROInames)
-        # Do plotting of voxelwise parameter change
-        # plot_utils.plot_data(fname_orig, data_corr, data_orig, data_raw_orig, data_raw_corr)
-        # Write parametric map
-        splitted = patient_name.split('_D')
-        dicomname = splitted[0]
-        print 'DICOM name:' + dicomname
-        #ASCII2DICOM(data_orig, 'DICOMconverted', 'results_DICOM_pmaps_noncorrectd', dicomname, patient_name, data_bounds, ROIpixel_array_all, ROInames)
-        #ASCII2DICOM(data_corr, 'DICOMconverted', 'results_DICOM_pmaps_corrected', dicomname, patient_name, data_bounds, ROIpixel_array_all, ROInames)
-        break
+#
+# Get subvolumes
+#
+# dwidcm        - DICOM source data
+# volume_list   - list of volume indexes for output
+# bounds        - bounds of subvolumes
+# output_prefix - output prefix
+#
+def get_subvolumes(input_dir, volume_list, bounds, output_prefix):
+    import dicom
+    import DicomIO
+    import shutil
+    import numpy as np
+    dcmio = DicomIO.DicomIO()
+    from nipype.utils.filemanip import split_filename
+    # resolve output directory and volumes
+    out_dir_base = experiment_dir + '/' + output_prefix + '/' + 'subvolumes'
+    filenames_all = []
+    outdirs_all = []
+    out_vols_all = []
+    for vol_i in range(len(volume_list)):
+        out_dir = out_dir_base + '_' + str(volume_list[vol_i])
+        out_vols = []
+        dwivolume = dwidcm[volume_list[vol_i]]
+        #take subregion from volume
+        for slice_i in range(len(dwivolume)):
+            pixel_array = dwivolume[slice_i].pixel_array[bounds[2]:bounds[3],bounds[0]:bounds[1]]
+            dwivolume[slice_i].PixelData = pixel_array.astype(np.uint16).tostring()
+            dwivolume[slice_i].Columns = bounds[1]-bounds[0]
+            dwivolume[slice_i].Rows = bounds[3]-bounds[2]
+        #append volume to lists
+        out_vols.append(dwivolume)
+        out_vols_all.append(dwivolume)
+        # Create output directory if it does not exist
+        if not os.path.exists(out_dir):
+            os.makedirs(out_dir)
+        else:
+            shutil.rmtree(out_dir)
+            os.makedirs(out_dir)
+        filenames = dcmio.WriteDICOM_frames(out_dir, out_vols, 'IM')
+        filenames_all.append(filenames)
+        outdirs_all.append(out_dir)
+    return outdirs_all, filenames_all, out_vols_all

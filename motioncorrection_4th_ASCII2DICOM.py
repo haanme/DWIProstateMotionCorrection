@@ -1,86 +1,87 @@
 #!/usr/bin/env python
 
 experiment_dir = '/Users/eija/Desktop/prostate_MR/pipelinedata'
-param_rigid = 'Par0001translation.txt'
-param_BSpline = 'Par0001bspline08.txt'
-#mask_matfile_basedir = '/Users/eija/Desktop/prostate_MR/PET_MR_dwis/Carimas27projectfiles_Hb_work_all_noGS/ROI_mat_files'
-mask_matfile_basedir_hB = '/Users/eija/Desktop/prostate_MR/PET_MR_dwis/Carimas27projectfiles_Hb_work_all_noGS_for_Motion_Cor/ROI_mat_files'
-mask_matfile_basedir_lB = '/Users/eija/Desktop/prostate_MR/PET_MR_dwis/Carimas27projectfiles_Lb_work_2rep/ROI_mat_files'
 
 #
 # Convert ASCII fitting results to DICOM
 #
 # in_file    - ASCII input file
-# in_dir     - DICOM directory for reference headers
 # out_prefix - patient subdir
+# out_basedir     - DICOM directory for reference headers
 # bounds     - box coordinates of DICOM inside the original DICOM data [xmin, xmax, ymin, ymax, zmin, zmax]
 #
-def ASCII2DICOM(in_file, in_dir, out_prefix, bounds):
+def ASCII2DICOM(in_refdir, in_file, out_prefix, out_basedir, bounds):
     import dicom
     import DicomIO
     import bfitASCII_IO
     import numpy as np
     import os
     import shutil
+    import copy
 
-    outdir_basename = experiment_dir + '/' + out_prefix + '/' + in_file.rstrip('.txt')
+    outdir_basename =  out_basedir + out_prefix
 
     # Resolve new frame list
     dcmio = DicomIO.DicomIO()
-    frame_list = dcmio.ReadDICOM_frames(experiment_dir + '/' + out_prefix + '/' + in_dir)
+    frame_list = dcmio.ReadDICOM_frames(in_refdir + '/' + out_prefix + '/' + 'DICOMconverted')
     slice_1st = frame_list[0][0]
     xdim = slice_1st.Columns
     ydim = slice_1st.Rows
     zdim = slice_1st.NumberOfSlices
     tdim = slice_1st.NumberOfTimeSlices
+    print "Original data dimensions:" + str([xdim, ydim, zdim, tdim])
     sample_frame = frame_list[0]
     del frame_list
 
     # Read data = { 'subwindow': subwindow, 'ROI_No': ROI_No, 'bset': bset, 'ROIslice': ROIslice, 'name': name, 'SIs': SIs }
     ASCIIio = bfitASCII_IO.bfitASCII_IO()
     print ("Reading " + in_file)
-    data = ASCIIio.Read(in_file)
+    data = ASCIIio.Read(in_file, False)
     pmap_subwindow = data['subwindow']
     pmap_SIs = data['data']
     pmap_names = data['parameters']
-    pmap_slices = data['ROIslice']-1
-
-    subwindow = [pmap_subwindow[0]-bounds[0], pmap_subwindow[1]-bounds[0], pmap_subwindow[2]-bounds[2], pmap_subwindow[3]-bounds[2]]
-    print "subwindow:" + str(subwindow)
-
+    pmap_names = [s.strip('[],\'') for s in pmap_names]
+    pmap_slices = data['ROIslice']
+    pmap_slices = [s-1 for s in pmap_slices]
     # Save in data in order z,y,x
     out_dirs = []
     for p_i in range(len(pmap_names)):
         SI_i = 0
-        out_vols = []
-        outvolume = sample_frame
-        print "Writing " + pmap_names[p_i]
-        for slice_i in range(len(pmap_slices)):
-            z_i = pmap_slices[slice_i]
+        outvolume = copy.deepcopy(sample_frame)
+        out_dir = outdir_basename + '_' + pmap_names[p_i]
+        print "Writing " + pmap_names[p_i] + ' to ' + out_dir
+        for z_i in range(zdim):
             # Initialize slice intensity values
-            pixel_array = np.array([[0]*ydim]*xdim)
+            pixel_array = np.zeros([xdim, ydim])
             # Place data into slice subregion
-            for y_i in range(subwindow[2], subwindow[3]+1):
-                for x_i in range(subwindow[0], subwindow[1]+1):
-                    pixel_array[y_i, x_i] = pmap_SIs[p_i][SI_i]
+            for x_i in range(pmap_subwindow[0], pmap_subwindow[1]+1):
+                for y_i in range(pmap_subwindow[2], pmap_subwindow[3]+1):
+                    pixel_array[y_i, x_i] = pmap_SIs[SI_i,p_i]
                     SI_i = SI_i + 1
+            pixel_array = pixel_array.T
+            intercept = np.amin(pixel_array)
+            pixel_array = pixel_array - intercept
+            slope = np.amax(pixel_array)-np.amin(pixel_array)
+            slope = slope/65535.0
+            pixel_array = np.round(pixel_array/slope)
+            pixel_array = pixel_array.astype(np.uint16)
             # Place data into slice
-            outvolume[z_i].PixelData = pixel_array.astype(np.uint16).tostring()
+            outvolume[z_i].RescaleSlope = slope
+            outvolume[z_i].RescaleIntercept = intercept
+            outvolume[z_i].PixelData = pixel_array.tostring()
             outvolume[z_i].Columns = xdim
             outvolume[z_i].Rows = ydim
             outvolume[z_i].NumberOfSlices = zdim
             outvolume[z_i].NumberOfTimeSlices = 1
-        # Append volume to lists
-        out_vols.append(outvolume)
+            outvolume[z_i].ImageIndex = z_i+1
         # Create output directory if it does not exist
-        out_dir = outdir_basename + '_' + pmap_names[p_i]
         if not os.path.exists(out_dir):
             os.makedirs(out_dir)
         else:
             shutil.rmtree(out_dir)
             os.makedirs(out_dir)
         # Write output DICOM
-        filenames = dcmio.WriteDICOM_frames(out_dir, out_vols, 'IM')
+        filenames = dcmio.WriteDICOM_frames(out_dir, [outvolume], 'IM')
         out_dirs.append(out_dir)
     return out_dirs
 
@@ -91,28 +92,32 @@ import DicomIO
 import conversions as conv
 import time
 import numpy as np
+import glob
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--dicomdir", dest="dicomdir", help="dicomdir", required=True)
+    parser.add_argument("--in_refdir", dest="in_refdir", help="input reference DICOM directory", required=True)
+    parser.add_argument("--in_ASCIIdir", dest="in_ASCIIdir", help="input directory for ASCII", required=True)
+    parser.add_argument("--out_basedir", dest="out_basedir", help="output base directory for DICOMs", required=True)
     parser.add_argument("--subject", dest="subject", help="subject id", required=True)
-    parser.add_argument("--suffix", dest="suffix", help="filename suffix", required=True)
+    parser.add_argument("--suffix", dest="suffix", help="suffix for read files", required=True)
     args = parser.parse_args()
 
     # Read subregion coordinates of non-corrected and corrected DICOMs
-    subregion_in_originalDICOM = np.loadtxt(experiment_dir + '/' + args.subject + '/subregion.txt')
-    # Write motioncorrected as single multifile DICOM subfolder
-    ASCIIbase = experiment_dir + '/' + args.subject + '/' + args.subject + '_'
-    DICOMbase = experiment_dir + '/' + out_prefix + '/'
-    print "Converting non-corrected"
-    try:
-        ASCII2DICOM(ASCIIbase + 'Noncorrected_ASCII.txt', DICOMbase + 'FromASCII_Noncorrected', args.subject, subregion_in_originalDICOM)
-    except Exception as inst:
-        raise
-    print "Converting motion corrected"
-    try:
-        ASCII2DIOM(ASCIIbase + 'Motioncorrected_ASCII.txt', DICOMbase + 'FromASCII_Motioncorrected', args.subject, subregion_in_originalDICOM)
-    except Exception as inst:
-        raise
+    subregion_in_originalDICOM = np.loadtxt(experiment_dir + '/' + args.subject + '/subregion10.txt')
+    print "Subregion in original dicom " + str(subregion_in_originalDICOM)
 
-    sys.exit(0)
+    print (args.in_ASCIIdir + os.sep + args.subject + '*' + args.suffix + '.txt')
+    filenames = glob.glob((args.in_ASCIIdir + os.sep + args.subject + '*' + args.suffix + '.txt'))
+
+    for filename in filenames:
+        print "Converting ASCII " + filename + " to DICOM"
+        # Write motioncorrected as single multifile DICOM subfolder
+        DICOMbase = args.out_basedir + '/' + args.subject + '/'
+        print "Output basedir " + DICOMbase
+        print "Converting to DICOM from ASCII parameter file"
+        try:
+            ASCII2DICOM(args.in_refdir, filename, args.subject, DICOMbase, subregion_in_originalDICOM)
+        except Exception as inst:
+            raise
+        sys.exit(0)
